@@ -8,10 +8,12 @@
 HANDLE hThread, hServer;
 Device* device;
 TCPSocket* tsocket;
+const char* server;
+u_char mac[6];
 
-void FormatAddressIP(char* str, const u_char add[4], u_short port)
+void FormatAddressIP(char* str, const u_char add[4])
 {
-	sprintf(str, "%d.%d.%d.%d:%d", add[0], add[1], add[2], add[3], port);
+	sprintf(str, "%d.%d.%d.%d", add[0], add[1], add[2], add[3]);
 }
 
 void FormatAddressMAC(char* str, const u_char add[6])
@@ -20,48 +22,50 @@ void FormatAddressMAC(char* str, const u_char add[6])
 		add[0], add[1], add[2], add[3], add[4], add[5]);
 }
 
-void PrintPacketInfoUDP(UDPPacket* packet)
+void PrintPacketInfoIP(Packet* packet)
 {
 	Ethernet* eth_header = packet -> EthernetHeader();
 	IP* ip_header = packet -> IPHeader();
-	UDP* udp_header = packet -> UDPHeader();
 
 	char saddr[25], daddr[25];
-	FormatAddressIP(saddr, ip_header -> src_addr, ntohs(udp_header -> src_port));
-	FormatAddressIP(daddr, ip_header -> dest_addr, ntohs(udp_header -> dest_port));
+	FormatAddressIP(saddr, (u_char*)&(ip_header -> src));
+	FormatAddressIP(daddr, (u_char*)&(ip_header -> dest));
 
 	printf("Len: %d\n%s -> %s\n", packet -> DataLength(), saddr, daddr);
 
-	FormatAddressMAC(saddr, eth_header -> src_addr);
-	FormatAddressMAC(daddr, eth_header -> dest_addr);
+	FormatAddressMAC(saddr, eth_header -> src);
+	FormatAddressMAC(daddr, eth_header -> dest);
 	printf("%s -> %s\n", saddr, daddr);
 }
 
-void PacketHandler(Packet* pac)
+void PacketHandler(Packet* packet)
 {
-	UDPPacket* packet = (UDPPacket*) pac;
-
 	printf("Packet Received\n");
-	PrintPacketInfoUDP(packet);
+	PrintPacketInfoIP(packet);
 	printf("\n");
 
-	size_t length = packet -> DataLength() + 10;
+	size_t length = packet -> Length() + 10;
 	char* buffer = new char[length];
 	memcpy(buffer, "zc", 2 * sizeof(u_char));
-	memcpy(buffer + 2, packet -> IPHeader() -> src_addr, 4 * sizeof(u_char));
-	memcpy(buffer + 6, packet -> IPHeader() -> dest_addr, 4 * sizeof(u_char));
-	memcpy(buffer + 10, packet -> Data(), packet -> DataLength());
+	memcpy(buffer + 2, &packet -> IPHeader() -> src, 4 * sizeof(u_char));
+	memcpy(buffer + 6, &packet -> IPHeader() -> dest, 4 * sizeof(u_char));
+	memcpy(buffer + 10, packet -> Raw(), packet -> Length());
 	tsocket -> Send(buffer, length);
 
+	Packet* another = new Packet(packet -> Length());
+	memcpy(another -> Raw(), packet -> Raw(), packet -> Length());
+	another -> CalcIPChecksum();
+	printf("%04X -> %04X\n", another -> IPHeader() -> crc, packet -> IPHeader() -> crc);
+
 	FILE *out = fopen("test.bin", "wb");
-	fwrite(packet -> Data(), sizeof(u_char), packet -> DataLength(), out);
+	fwrite(packet -> Raw(), sizeof(u_char), packet -> Length(), out);
 	fclose(out);
 }
 
 u_long WINAPI Listen(void*)
 {
-	printf("Listening on UDP port 6112\n");
-	device -> SetFilter("ip and udp and port 6112");
+	printf("Listening on udp port 6112\n");
+	device -> SetFilter("ip and port 6112");
 	device -> ListenUDP(PacketHandler);
 	printf("Stop listening\n");
 	return 0;
@@ -80,20 +84,20 @@ size_t ReadPacket(const char* path, u_char** ret)
 
 	return len;
 }
-
+/*
 void SendPacket()
 {
 	u_char* data;
-	size_t len = ReadPacket("3.bin", &data);
+	size_t len = ReadPacket("4.bin", &data);
 
 	printf("Send a packet\n");
 	UDPPacket* packet = new UDPPacket(len + 42);
 
 	u_char buf[20] = {
 		0x22, 0x22, 0x22, 0x22, 0x22, 0x22,
-		0x33, 0x33, 0x33, 0x33, 0x33, 0x33,
+		0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 		192, 168, 2, 3,
-		127, 0, 0, 1
+		255, 255, 255, 255
 	};
 
 	u_short p1 = 6112, p2 = 6112;
@@ -111,7 +115,7 @@ void SendPacket()
 	delete packet;
 	delete data;
 }
-
+*/
 void InputLoop()
 {
 	for (;;)
@@ -123,7 +127,7 @@ void InputLoop()
 				return;
 				break;
 			case 's':
-				SendPacket();
+				//SendPacket();
 				break;
 		}
 	}
@@ -131,11 +135,35 @@ void InputLoop()
 
 u_long WINAPI ListenServer(void*)
 {
+	tsocket -> Connect(server, 8888);
 	while (tsocket && !tsocket -> Closed())
 	{
-		if (tsocket -> Recv() != -1)
+		int size;
+		if ((size = tsocket -> Recv()) != -1)
 		{
 			//TODO
+
+			/*
+			const u_char* buffer = (const u_char*)tsocket -> Data();
+			char saddr[25], daddr[25];
+			FormatAddressIP(saddr, buffer + 2, 6112);
+			FormatAddressIP(daddr, buffer + 6, 6112);
+			printf("Receive from server:\n");
+			printf("%s -> %s\n", saddr, daddr);
+			const u_char* data = buffer + 10;
+			printf("%s\n", data);
+
+			UDPPacket* packet = new UDPPacket(size - 10 + 42);
+			u_char temp[10] = {
+				0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				127, 0, 0, 1
+			};
+			packet -> CreatePacket(
+				temp, mac, buffer + 2, temp + 6, 6112, 6112, data);
+			device -> Send(packet);
+
+			delete packet;
+			*/
 		}
 	}
 	printf("Server disconnected\n");
@@ -157,7 +185,6 @@ void init()
 
 	TCPSocket::Startup();
 	tsocket = new TCPSocket();
-	tsocket -> Connect("192.168.0.103", 8888);
 
 	hServer = CreateThread(0, 0, ListenServer, NULL, 0, NULL);
 }
@@ -176,10 +203,16 @@ void clean()
 	CloseHandle(hServer);
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	try
 	{
+		server = argv[1];
+		int tp[6];
+		sscanf(argv[2], "%02X:%02X:%02X:%02X:%02X:%02X", 
+			&tp[0], &tp[1], &tp[2], &tp[3], &tp[4], &tp[5]);
+		for (int i = 0; i < 6; ++i)
+			mac[i] = tp[i];
 		init();
 		InputLoop();
 		clean();

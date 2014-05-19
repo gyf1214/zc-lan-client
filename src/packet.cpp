@@ -1,6 +1,23 @@
 #define _LIB
 #include "packet.h"
 
+//IP & Ethernet
+
+u_short Packet::crc(u_char* p, int psize)
+{
+	u_short ret = 0;
+	for(int i = 0; i < psize; i += 2)
+	{
+		u_short tmp = BTW(p[i], p[i + 1]);
+		u_short diff = 65535 - ret;
+		ret += tmp;
+		if(tmp > diff)
+			++ret;
+	}
+
+	return ~ret;
+}
+
 Packet::Packet(void *s, size_t l)
 {
 	data = (u_char*)s;
@@ -61,18 +78,35 @@ size_t Packet::DataLength()
 	return len - HeaderLength();
 }
 
-u_short Packet::CalcIPChecksum()
+void Packet::CalcIPChecksum()
 {
-	u_short ret = 0;
-	for (int i = 14; i < 34; i += 2)
-	{
-		u_short tmp = BTW(data[i], data[i + 1]);
-		u_short diff = 65535 - ret;
-		ret += tmp;
-		if (tmp > diff) ++ret;
-	}
-	return ~ret;
+	IP* ip_header = IPHeader();
+	ip_header -> crc = 0;
+	ip_header -> crc = htons(crc((u_char*) ip_header, IPLength()));
 }
+
+u_short Packet::psd_crc(u_char protocol)
+{
+	int totlen = sizeof(PSD) + DataLength();
+	char* buf = new char[totlen];
+
+	PSD* psd_header = (PSD*)buf;
+	memcpy(buf + sizeof(PSD), Data(), DataLength());
+
+	IP* ip_header = IPHeader();
+	psd_header -> src = ip_header -> src;
+	psd_header -> dest = ip_header -> dest;
+	psd_header -> zero = 0;
+	psd_header -> protocol = protocol;
+	psd_header -> len = htons(DataLength());
+
+	u_short ret = crc((u_char*)buf, totlen);
+
+	delete[] buf;
+	return ret;
+}
+
+//UDP
 
 UDPPacket::UDPPacket(void* s, size_t l) : Packet(s, l)
 {}
@@ -100,14 +134,60 @@ void* UDPPacket::Data()
 	return data + HeaderLength();
 }
 
+void UDPPacket::CalcUDPChecksum()
+{
+	UDP* udp_header = UDPHeader();
+	udp_header -> crc = 0;
+	udp_header -> crc = psd_crc(0x11);
+}
+
+
+//TCP
+
+TCPPacket::TCPPacket(void* s, size_t l) : Packet(s, l)
+{}
+
+TCPPacket::TCPPacket(size_t l) : Packet(l)
+{}
+
+TCP* TCPPacket::TCPHeader()
+{
+	return (TCP*) (data + EthernetLength + IPLength());
+}
+
+size_t TCPPacket::HeaderLength()
+{
+	return EthernetLength + IPLength() + TCPLength;
+}
+
+size_t TCPPacket::DataLength()
+{
+	return len - HeaderLength();
+}
+
+void* TCPPacket::Data()
+{
+	return data + HeaderLength();
+}
+
+void TCPPacket::CalcTCPChecksum()
+{
+	TCP* tcp_header = TCPHeader();
+	tcp_header -> crc = 0;
+	tcp_header -> crc = psd_crc(0x06);
+}
+
+
+
+/*
 void UDPPacket::CreatePacket(
-	u_char*	src_mac,
-	u_char*	dest_mac,
-	u_char*	src_ip,
-	u_char*	dest_ip,
+	const u_char*	src_mac,
+	const u_char*	dest_mac,
+	const u_char*	src_ip,
+	const u_char*	dest_ip,
 	u_short src_port,
 	u_short dest_port,
-	void*	user_data
+	const void*	user_data
 ) {
 	Ethernet* eth_header = EthernetHeader();
 	memcpy(eth_header -> dest_addr, dest_mac, 6);
@@ -163,13 +243,14 @@ u_short UDPPacket::CalcUDPChecksum()
 
 
 	for(int i = 0;i < PseudoLength;i+=2)
-    {
-        u_short Tmp = BTW(PseudoHeader[i],PseudoHeader[i+1]);
-        u_short Difference = 65535 - CheckSum;
-        CheckSum += Tmp;
-        if(Tmp > Difference){CheckSum += 1;}
-    }
-    delete[] PseudoHeader;
+	{
+		u_short Tmp = BTW(PseudoHeader[i],PseudoHeader[i+1]);
+		u_short Difference = 65535 - CheckSum;
+		CheckSum += Tmp;
+		if(Tmp > Difference){CheckSum += 1;}
+	}
+	delete[] PseudoHeader;
 	CheckSum = ~CheckSum;
 	return CheckSum;
 }
+*/

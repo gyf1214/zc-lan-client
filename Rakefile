@@ -6,7 +6,7 @@ srcs.each do |i|
 	objs.push j
 end
 
-flag = "-Wall -DWPCAP -DHAVE_REMOTE"
+flag = "-g -Wall -DWPCAP -DHAVE_REMOTE"
 inc = "D:/WpdPack/Include"
 
 lib = "D:/WpdPack/Lib"

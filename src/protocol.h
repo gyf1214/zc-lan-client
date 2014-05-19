@@ -8,8 +8,8 @@
 
 struct Ethernet
 {
-	u_char	dest_addr[6];
-	u_char	src_addr[6];
+	u_char	dest[6];
+	u_char	src[6];
 	u_short	frame_type;
 };
 
@@ -23,8 +23,8 @@ struct IP
 	u_char		ttl;
 	u_char		protocol;
 	u_short		crc;
-	u_char		src_addr[4];
-	u_char		dest_addr[4];
+	u_long		src;
+	u_long		dest;
 	u_long		op_pad;
 };
 
@@ -48,6 +48,15 @@ struct TCP
 	u_short	crc;
 	u_short	urg;
 	u_long	op_pad;
+};
+
+struct PSD
+{
+	u_long	src;
+	u_long	dest;
+    u_char	zero;
+    u_char	protocol;
+    u_short	len;
 };
 
 #endif

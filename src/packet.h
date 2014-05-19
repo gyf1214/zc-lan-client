@@ -14,6 +14,8 @@ protected:
 	size_t len;
 	u_char* data;
 	bool release;
+	static u_short crc(u_char*, int);
+	u_short psd_crc(u_char);
 public:
 	static const size_t EthernetLength = sizeof(Ethernet);
 	static const u_long ID = 0x48D8;
@@ -32,7 +34,7 @@ public:
 	size_t HeaderLength();
 	size_t DataLength();
 
-	u_short CalcIPChecksum();
+	void CalcIPChecksum();
 };
 
 class DLL_EXPORT UDPPacket : public Packet
@@ -48,8 +50,23 @@ public:
 	size_t HeaderLength();
 	size_t DataLength();
 
-	u_short CalcUDPChecksum();
-	void CreatePacket(u_char[6], u_char[6], u_char[4], u_char[4], u_short, u_short, void*);
+	void CalcUDPChecksum();
+};
+
+class DLL_EXPORT TCPPacket : public Packet
+{
+public:
+	static const size_t TCPLength = sizeof(TCP);
+
+	TCPPacket(void*, size_t);
+	TCPPacket(size_t);
+	TCP* TCPHeader();
+	void* Data();
+
+	size_t HeaderLength();
+	size_t DataLength();
+
+	void CalcTCPChecksum();
 };
 
 #endif
