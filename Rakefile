@@ -41,8 +41,12 @@ task :objects => objs
 
 task :all => :excutive
 
+task :offline => :all do
+	sh "bin/main.exe 192.168.56.1 08:00:27:00:18:53 192.168.56.1"
+end
+
 task :run => :all do
-	sh "bin/main.exe"
+	sh "bin/main.exe 192.168.0.101 00:19:D2:9E:C9:67 192.168.0.101"
 end
 
 task :default => :all

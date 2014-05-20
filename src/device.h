@@ -23,7 +23,6 @@ private:
 	static char errbuf[PCAP_ERRBUF_SIZE];
 	static pcap_if_t* GetRawByIndex(int);
 	static void ip_listener(u_char*, const pcap_pkthdr*, const u_char*);
-	static void udp_listener(u_char*, const pcap_pkthdr*, const u_char*);
 
 public:
 	typedef void (*Listener) (Packet*);

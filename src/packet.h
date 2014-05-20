@@ -35,6 +35,8 @@ public:
 	size_t DataLength();
 
 	void CalcIPChecksum();
+
+	Packet* Clone();
 };
 
 class DLL_EXPORT UDPPacket : public Packet

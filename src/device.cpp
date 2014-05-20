@@ -72,22 +72,9 @@ void Device::Listen(Listener lis)
 	pcap_loop(dev, 0, ip_listener, (u_char*)this);
 }
 
-void Device::ListenUDP(Listener lis)
-{
-	listener = lis;
-	pcap_loop(dev, 0, udp_listener, (u_char*) this);
-}
-
 void Device::ip_listener(u_char* device, const pcap_pkthdr* header, const u_char* data)
 {
 	Packet* packet = new Packet((void*)data, header -> len);
-	((Device*)device) -> listener(packet);
-	delete packet;
-}
-
-void Device::udp_listener(u_char* device, const pcap_pkthdr* header, const u_char* data)
-{
-	Packet* packet = new UDPPacket((void*)data, header -> len);
 	((Device*)device) -> listener(packet);
 	delete packet;
 }

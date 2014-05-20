@@ -106,6 +106,13 @@ u_short Packet::psd_crc(u_char protocol)
 	return ret;
 }
 
+Packet* Packet::Clone()
+{
+	Packet* ret = new Packet(Length());
+	memcpy(ret -> Raw(), Raw(), Length());
+	return ret;
+}
+
 //UDP
 
 UDPPacket::UDPPacket(void* s, size_t l) : Packet(s, l)
@@ -138,7 +145,7 @@ void UDPPacket::CalcUDPChecksum()
 {
 	UDP* udp_header = UDPHeader();
 	udp_header -> crc = 0;
-	udp_header -> crc = psd_crc(0x11);
+	udp_header -> crc = htons(psd_crc(PROTO_UDP));
 }
 
 
@@ -174,7 +181,7 @@ void TCPPacket::CalcTCPChecksum()
 {
 	TCP* tcp_header = TCPHeader();
 	tcp_header -> crc = 0;
-	tcp_header -> crc = psd_crc(0x06);
+	tcp_header -> crc = htons(psd_crc(PROTO_TCP));
 }
 
 

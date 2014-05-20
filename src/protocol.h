@@ -5,6 +5,8 @@
 
 #define BTW(x, y) (((x)<<8)|(y))
 #define BTDW(x, y, z, w) (((x)<<24)|((y)<<16)|((z)<<8)|(w))
+#define PROTO_TCP	0x06
+#define PROTO_UDP	0x11
 
 struct Ethernet
 {
